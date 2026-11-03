@@ -21,7 +21,11 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     except Exception:
         return False
 
-def create_access_token(subject: str | Any, expires_delta: Optional[timedelta] = None) -> str:
+def create_access_token(
+    subject: str | Any,
+    expires_delta: Optional[timedelta] = None,
+    extra_claims: Optional[Dict[str, Any]] = None
+) -> str:
     """Generate signed JWT bearer token."""
     now = datetime.now(timezone.utc)
     if expires_delta:
@@ -34,6 +38,8 @@ def create_access_token(subject: str | Any, expires_delta: Optional[timedelta] =
         "iat": int(now.timestamp()),
         "exp": int(expire.timestamp())
     }
+    if extra_claims:
+        to_encode.update(extra_claims)
     
     encoded_jwt = jwt.encode(
         to_encode,

@@ -88,6 +88,8 @@ export const AppContent: React.FC = () => {
         <Route path="payments" element={<PaymentsPage />} />
         <Route path="profit-coach" element={<ProfitCoachPage />} />
         <Route path="sarvam-assistant" element={<SarvamAssistantPage />} />
+        <Route path="selling-lots" element={<DashboardPage />} />
+        <Route path="lots" element={<DashboardPage />} />
       </Route>
 
       {/* Fallback */}

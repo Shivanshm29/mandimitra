@@ -62,3 +62,139 @@ def seed_mandi_prices_if_empty(db: Session):
         db.add(price)
     db.commit()
 
+def seed_demo_farmer_if_empty(db: Session):
+    from app.models.user import User
+    from app.models.farmer_profile import FarmerProfile
+    from app.models.harvest import HarvestRecord
+    from app.models.selling_lot import SellingLot
+    from app.models.transaction import Sale, SaleDeduction, Payment
+    from app.core.security import get_password_hash
+
+    existing_user = db.scalar(select(User).limit(1))
+    if existing_user:
+        return
+
+    today = date.today()
+
+    # 1. User Account: tukap / password123
+    user = User(
+        id=1,
+        username="tukap",
+        hashed_password=get_password_hash("password123"),
+        is_active=True,
+        is_superuser=False
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+
+    # 2. Farmer Profile
+    profile = FarmerProfile(
+        id=1,
+        user_id=user.id,
+        display_name="Tukaram Patil",
+        phone_number="9822012345",
+        state="Maharashtra",
+        district="Nashik",
+        village="Pimpalgaon Baswant",
+        locality="Rural",
+        preferred_language="mr-IN",
+        commonly_grown_crops=[
+            {"commodity": "Onion", "variety": "Red Garwa"},
+            {"commodity": "Soybean", "variety": "Yellow"},
+            {"commodity": "Tomato", "variety": "Hybrid"}
+        ],
+        frequently_sold_commodities=["Onion", "Soybean"]
+    )
+    db.add(profile)
+    db.commit()
+    db.refresh(profile)
+
+    # 3. Harvest Record
+    harvest = HarvestRecord(
+        id=1,
+        farmer_id=profile.id,
+        commodity="Onion",
+        variety="Red Garwa",
+        harvest_date=today - timedelta(days=7),
+        harvested_quantity=Decimal("35.00"),
+        remaining_quantity=Decimal("15.00"),
+        quantity_unit="Quintal",
+        quality_grade="Grade A",
+        storage_location="Farm Storage Shed 1",
+        notes="High quality Garwa onion batch"
+    )
+    db.add(harvest)
+    db.commit()
+    db.refresh(harvest)
+
+    # 4. Selling Lot: LOT-001
+    lot = SellingLot(
+        id=1,
+        farmer_id=profile.id,
+        harvest_id=harvest.id,
+        lot_code="LOT-001",
+        commodity="Onion",
+        variety="Red Garwa",
+        total_quantity=Decimal("20.00"),
+        available_quantity=Decimal("10.00"),
+        sold_quantity=Decimal("10.00"),
+        quantity_unit="Quintal",
+        quality_grade="Grade A",
+        expected_rate=Decimal("2400.00"),
+        status="PARTIALLY_SOLD",
+        harvest_date=today - timedelta(days=7),
+        notes="Allocated from Harvest #1"
+    )
+    db.add(lot)
+    db.commit()
+    db.refresh(lot)
+
+    # 5. Sale Transaction
+    sale = Sale(
+        id=1,
+        farmer_id=profile.id,
+        lot_id=lot.id,
+        trader_name="महालक्ष्मी ऍग्रो (Mahalaxmi Agro)",
+        market_name="Lasalgaon APMC",
+        commodity="Onion",
+        variety="Red Garwa",
+        quantity=Decimal("10.00"),
+        quantity_unit="Quintal",
+        rate_per_unit=Decimal("2350.00"),
+        gross_amount=Decimal("23500.00"),
+        total_deductions=Decimal("350.00"),
+        net_receivable=Decimal("23150.00"),
+        amount_received=Decimal("15000.00"),
+        outstanding_balance=Decimal("8150.00"),
+        status="PARTIAL",
+        sale_date=today - timedelta(days=2),
+        notes="Weighing slip #8492"
+    )
+    db.add(sale)
+    db.commit()
+    db.refresh(sale)
+
+    # 6. Deductions
+    d1 = SaleDeduction(sale_id=sale.id, deduction_type="HAMALI", amount=Decimal("250.00"), description="हमाली / Labor charges")
+    d2 = SaleDeduction(sale_id=sale.id, deduction_type="WEIGHING", amount=Decimal("100.00"), description="तोल फी / Weighing fee")
+    db.add_all([d1, d2])
+
+    # 7. Payment Record
+    p1 = Payment(
+        id=1,
+        farmer_id=profile.id,
+        sale_id=sale.id,
+        amount=Decimal("15000.00"),
+        payment_mode="CASH",
+        payment_date=today - timedelta(days=1),
+        reference_note="First installment paid at mandi gate"
+    )
+    db.add(p1)
+    db.commit()
+
+def seed_all_defaults(db: Session):
+    seed_mandi_prices_if_empty(db)
+    seed_demo_farmer_if_empty(db)
+
+

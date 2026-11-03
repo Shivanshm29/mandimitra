@@ -1,3 +1,4 @@
+import os
 from typing import Generator, Optional
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
@@ -42,11 +43,40 @@ def get_current_user(
         
     user = UserRepository.get_by_id(db, user_id)
     if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User not found.",
-            headers={"WWW-Authenticate": "Bearer"}
-        )
+        # If running in serverless environment (e.g. Vercel), auto-restore user and profile from verified JWT claims
+        username = payload.get("username")
+        if username and os.environ.get("VERCEL"):
+            from app.models.farmer_profile import FarmerProfile
+            user = User(
+                id=user_id,
+                username=username,
+                hashed_password="$2b$12$e0X4V8PzL0O3R1M5T9W2J.dummyhashforvercelephemeralstate0",
+                is_active=True,
+                is_superuser=False
+            )
+            db.add(user)
+            db.commit()
+            db.refresh(user)
+
+            prof = db.query(FarmerProfile).filter(FarmerProfile.user_id == user.id).first()
+            if not prof:
+                prof = FarmerProfile(
+                    user_id=user.id,
+                    display_name=payload.get("display_name", username),
+                    state=payload.get("state", "Maharashtra"),
+                    district=payload.get("district", "Nashik"),
+                    village=payload.get("village", "Pimpalgaon Baswant"),
+                    preferred_language=payload.get("preferred_language", "mr-IN"),
+                    commonly_grown_crops=[{"commodity": "Onion", "variety": "Red Garwa"}]
+                )
+                db.add(prof)
+                db.commit()
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="User not found.",
+                headers={"WWW-Authenticate": "Bearer"}
+            )
         
     if not user.is_active:
         raise HTTPException(

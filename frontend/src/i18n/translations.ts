@@ -72,6 +72,21 @@ export interface Translations {
     cardTransactions: { title: string; desc: string; action: string };
     cardPayments: { title: string; desc: string; action: string };
     cardSarvam: { title: string; desc: string; action: string };
+    recordPaymentBtn: string;
+    recordPaymentSubtitle: string;
+    totalGrossTitle: string;
+    salesCountUnit: string;
+    receivedInflowTitle: string;
+    settledCountUnit: string;
+    outstandingBalanceTitle: string;
+    detailsAction: string;
+    pendingCountUnit: string;
+    liveMandiTitle: string;
+    agmarknetDaily: string;
+    viewAllPrices: string;
+    perQuintal: string;
+    minPriceLabel: string;
+    maxPriceLabel: string;
   };
   harvest: {
     title: string;
@@ -430,6 +445,21 @@ export const translations: Record<SupportedLanguage, Translations> = {
         desc: 'मराठी व हिंदी भाषेत बोलून किंवा पावतीचा फोटो पाठवून हिशोब समजून घ्या.',
         action: 'AI सह संवाद साधा',
       },
+      recordPaymentBtn: 'पेमेंट नोंदवा',
+      recordPaymentSubtitle: 'थकबाकी जमा नोंद',
+      totalGrossTitle: 'एकूण विक्री उलाढाल',
+      salesCountUnit: 'नोंदी',
+      receivedInflowTitle: 'रोख व बँक जमा',
+      settledCountUnit: 'पूर्ण व्यवहार',
+      outstandingBalanceTitle: 'व्यापाऱ्यांकडील थकीत बाकी',
+      detailsAction: 'तपशील',
+      pendingCountUnit: 'थकीत सौदे',
+      liveMandiTitle: 'थेट बाजारभाव',
+      agmarknetDaily: '(AGMARKNET व MSAMB दैनंदिन दर)',
+      viewAllPrices: 'सर्व बाजारभाव पहा',
+      perQuintal: '/ क्विंटल',
+      minPriceLabel: 'किमान',
+      maxPriceLabel: 'कमाल',
     },
     harvest: {
       title: 'काढणी व शेतमाल साठा (Harvest Records)',
@@ -787,6 +817,21 @@ export const translations: Record<SupportedLanguage, Translations> = {
         desc: 'अपनी भाषा में बोलकर या रसीद दिखाकर हिसाब और बाज़ार की जानकारी पाएं।',
         action: 'AI से बात करें',
       },
+      recordPaymentBtn: 'भुगतान दर्ज करें',
+      recordPaymentSubtitle: 'बकाया राशि रसीद',
+      totalGrossTitle: 'कुल सकल बिक्री',
+      salesCountUnit: 'सौदे',
+      receivedInflowTitle: 'प्राप्त राशि',
+      settledCountUnit: 'पूर्ण सौदे',
+      outstandingBalanceTitle: 'कुल बकाया राशि',
+      detailsAction: 'विवरण',
+      pendingCountUnit: 'बकाया सौदे',
+      liveMandiTitle: 'लाइव मंडी भाव',
+      agmarknetDaily: '(AGMARKNET व MSAMB दैनिक दर)',
+      viewAllPrices: 'सभी मंडी भाव देखें',
+      perQuintal: '/ क्विंटल',
+      minPriceLabel: 'न्यूनतम',
+      maxPriceLabel: 'अधिकतम',
     },
     harvest: {
       title: 'फसल कटाई व उपज स्टॉक (Harvest Records)',
@@ -1144,6 +1189,21 @@ export const translations: Record<SupportedLanguage, Translations> = {
         desc: 'Indic voice reasoning and document OCR for weighing slips in Marathi, Hindi & English.',
         action: 'Consult Sarvam AI',
       },
+      recordPaymentBtn: 'Record Payment',
+      recordPaymentSubtitle: 'Receipts & installments',
+      totalGrossTitle: 'Total Gross Sales',
+      salesCountUnit: 'Transactions',
+      receivedInflowTitle: 'Realized Revenue',
+      settledCountUnit: 'Settled Sales',
+      outstandingBalanceTitle: 'Pending Receivables',
+      detailsAction: 'Details',
+      pendingCountUnit: 'Pending Sales',
+      liveMandiTitle: 'Live Mandi Prices',
+      agmarknetDaily: '(AGMARKNET & MSAMB Daily Rates)',
+      viewAllPrices: 'View All Prices',
+      perQuintal: '/ Quintal',
+      minPriceLabel: 'Min',
+      maxPriceLabel: 'Max',
     },
     harvest: {
       title: 'Harvest & Produce Inventory (Harvest Records)',

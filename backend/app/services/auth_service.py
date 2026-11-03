@@ -65,8 +65,16 @@ class AuthService:
         db.refresh(user)
         db.refresh(profile)
 
-        # Generate access token
-        access_token = create_access_token(subject=user.id)
+        # Generate access token with recovery claims for serverless environments
+        claims = {
+            "username": user.username,
+            "display_name": profile.display_name,
+            "district": profile.district,
+            "village": profile.village,
+            "state": profile.state,
+            "preferred_language": profile.preferred_language,
+        }
+        access_token = create_access_token(subject=user.id, extra_claims=claims)
         return user, profile, access_token
 
     @staticmethod
@@ -85,6 +93,15 @@ class AuthService:
                 detail="User account is deactivated."
             )
 
-        access_token = create_access_token(subject=user.id)
+        profile = FarmerRepository.get_by_user_id(db, user.id)
+        claims = {
+            "username": user.username,
+            "display_name": profile.display_name if profile else user.username,
+            "district": profile.district if profile else "Nashik",
+            "village": profile.village if profile else "Pimpalgaon",
+            "state": profile.state if profile else "Maharashtra",
+            "preferred_language": profile.preferred_language if profile else "mr-IN",
+        }
+        access_token = create_access_token(subject=user.id, extra_claims=claims)
         return user, access_token
 

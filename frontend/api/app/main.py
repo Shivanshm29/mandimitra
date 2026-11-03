@@ -14,18 +14,23 @@ from app.database.session import engine
 # Ensure models are imported for metadata registration
 import app.models  # noqa: F401
 
+def init_db_and_seed():
+    """Ensure database tables and demo seed records exist (needed for serverless cold-starts)."""
+    try:
+        Base.metadata.create_all(bind=engine)
+        from app.database.session import SessionLocal
+        from app.database.seed_data import seed_all_defaults
+        with SessionLocal() as db:
+            seed_all_defaults(db)
+    except Exception as exc:
+        print("Database schema/seed init notice:", exc)
+
+# Initialize immediately upon module load for serverless environments
+init_db_and_seed()
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Initialize database tables
-    Base.metadata.create_all(bind=engine)
-    # Seed baseline mandi market rates if empty
-    from app.database.session import SessionLocal
-    from app.database.seed_data import seed_mandi_prices_if_empty
-    db = SessionLocal()
-    try:
-        seed_mandi_prices_if_empty(db)
-    finally:
-        db.close()
+    init_db_and_seed()
     yield
 
 app = FastAPI(
