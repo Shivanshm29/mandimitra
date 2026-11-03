@@ -1,0 +1,46 @@
+{
+  "_metadata": {
+    "status": "PHASE_0_REFERENCE",
+    "description": "Baseline directory of major APMC Mandis in Maharashtra for Phase 2 integration mapping",
+    "source": "Maharashtra State Agricultural Marketing Board (MSAMB) / AGMARKNET reference"
+  },
+  "major_markets": [
+    {
+      "market_name": "Pimpalgaon",
+      "district": "Nashik",
+      "state": "Maharashtra",
+      "primary_commodities": ["Onion", "Tomato", "Grapes", "Soybean"]
+    },
+    {
+      "market_name": "Lasalgaon",
+      "district": "Nashik",
+      "state": "Maharashtra",
+      "primary_commodities": ["Onion", "Soybean", "Maize"]
+    },
+    {
+      "market_name": "Pune (Gultekdi)",
+      "district": "Pune",
+      "state": "Maharashtra",
+      "primary_commodities": ["Vegetables", "Fruits", "Wheat", "Onion"]
+    },
+    {
+      "market_name": "Barshi",
+      "district": "Solapur",
+      "state": "Maharashtra",
+      "primary_commodities": ["Soybean", "Tur (Pigeon Pea)", "Gram", "Jowar"]
+    },
+    {
+      "market_name": "Nagpur (Kalamna)",
+      "district": "Nagpur",
+      "state": "Maharashtra",
+      "primary_commodities": ["Orange", "Cotton", "Soybean", "Paddy"]
+    },
+    {
+      "market_name": "Ahmednagar",
+      "district": "Ahmednagar",
+      "state": "Maharashtra",
+      "primary_commodities": ["Pomegranate", "Onion", "Cotton", "Maize"]
+    }
+  ]
+}
+
