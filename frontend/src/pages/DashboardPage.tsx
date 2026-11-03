@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../app/AuthContext';
 import { useLanguage } from '../app/LanguageContext';
+import { useAssistant } from '../app/AssistantContext';
 import { mandiService } from '../services/mandiService';
 import { transactionService } from '../services/transactionService';
 import type { MarketPrice } from '../types/mandi';
@@ -11,7 +12,6 @@ import { Button } from '../components/Button';
 import { Badge } from '../components/Badge';
 import { RecordSaleModal } from '../components/RecordSaleModal';
 import { RecordPaymentModal } from '../components/RecordPaymentModal';
-import { VoiceAssistantModal } from '../components/VoiceAssistantModal';
 import { DocumentScanModal } from '../components/DocumentScanModal';
 import { SellingLotsManager } from '../components/SellingLotsManager';
 import {
@@ -36,6 +36,7 @@ import {
 export const DashboardPage: React.FC = () => {
   const { user, profile } = useAuth();
   const { language, setLanguage, t } = useLanguage();
+  const { openAssistant } = useAssistant();
   const navigate = useNavigate();
 
   const [prices, setPrices] = useState<MarketPrice[]>([]);
@@ -46,7 +47,6 @@ export const DashboardPage: React.FC = () => {
   // Modals
   const [isSaleModalOpen, setIsSaleModalOpen] = useState(false);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
-  const [isVoiceModalOpen, setIsVoiceModalOpen] = useState(false);
   const [isDocScanModalOpen, setIsDocScanModalOpen] = useState(false);
   const [prefillSaleData, setPrefillSaleData] = useState<any>(null);
 
@@ -97,8 +97,11 @@ export const DashboardPage: React.FC = () => {
           {/* Prominent Voice Assistant Button */}
           <div className="flex items-center gap-3">
             <button
-              onClick={() => setIsVoiceModalOpen(true)}
+              type="button"
+              onClick={() => openAssistant()}
               className="px-5 py-3.5 bg-mustard-500 hover:bg-mustard-400 text-charcoal-900 rounded-2xl font-bold shadow-lg flex items-center gap-2.5 transition-all transform active:scale-95 text-sm sm:text-base cursor-pointer"
+              title={t.dashboard.askSarvamVoiceBtn}
+              aria-label={t.dashboard.askSarvamVoiceBtn}
             >
               <div className="w-8 h-8 rounded-xl bg-charcoal-900 text-mustard-400 flex items-center justify-center">
                 <Mic className="w-5 h-5 animate-pulse" />
@@ -362,11 +365,6 @@ export const DashboardPage: React.FC = () => {
           setPrefillSaleData(data);
           setIsSaleModalOpen(true);
         }}
-      />
-
-      <VoiceAssistantModal
-        isOpen={isVoiceModalOpen}
-        onClose={() => setIsVoiceModalOpen(false)}
       />
     </div>
   );

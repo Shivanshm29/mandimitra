@@ -2,6 +2,7 @@ import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './AuthContext';
 import { LanguageProvider } from './LanguageContext';
+import { AssistantProvider } from './AssistantContext';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { AppShell } from '../layouts/AppShell';
 import { LoginPage } from '../pages/LoginPage';
@@ -103,9 +104,11 @@ export const App: React.FC = () => {
     <BrowserRouter>
       <LanguageProvider>
         <AuthProvider>
-          <ErrorBoundary>
-            <AppContent />
-          </ErrorBoundary>
+          <AssistantProvider>
+            <ErrorBoundary>
+              <AppContent />
+            </ErrorBoundary>
+          </AssistantProvider>
         </AuthProvider>
       </LanguageProvider>
     </BrowserRouter>

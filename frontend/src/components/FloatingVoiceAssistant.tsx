@@ -1,5 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useRef, useEffect } from 'react';
 import {
   Bot,
   Sparkles,
@@ -13,63 +12,46 @@ import {
   User,
   Trash2,
   CheckCircle2,
-  ArrowRight,
-  Package,
-  TrendingUp,
-  CreditCard,
-  AlertCircle,
   Loader2,
   Square,
 } from 'lucide-react';
 import { useLanguage } from '../app/LanguageContext';
-import { useAuth } from '../app/AuthContext';
-import { sarvamService, type ActionProposal, type ChatResponse } from '../services/sarvamService';
+import { useAssistant } from '../app/AssistantContext';
 import { Badge } from './Badge';
 
-interface Message {
-  role: 'user' | 'assistant';
-  text: string;
-  action_proposal?: ActionProposal | null;
-  executed?: boolean;
-  executionResult?: string;
-}
-
 export const FloatingVoiceAssistant: React.FC = () => {
-  const { language, setLanguage, t } = useLanguage();
-  const { user, profile } = useAuth();
-  const navigate = useNavigate();
+  const { language, t } = useLanguage();
+  const {
+    isOpen,
+    openAssistant,
+    closeAssistant,
+    isFullScreen,
+    setIsFullScreen,
+    messages,
+    inputQuery,
+    setInputQuery,
+    loading,
+    handleSend,
+    isRecording,
+    startVoiceRecording,
+    stopVoiceRecording,
+    audioLoadingIndex,
+    speakWithSarvam,
+    executingAction,
+    handleExecuteAction,
+    clearHistory,
+  } = useAssistant();
 
-  const [isOpen, setIsOpen] = useState(false);
-  const [isFullScreen, setIsFullScreen] = useState(false);
-  const [inputQuery, setInputQuery] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [isRecording, setIsRecording] = useState(false);
-  const [audioLoadingIndex, setAudioLoadingIndex] = useState<number | null>(null);
-  const [executingAction, setExecutingAction] = useState(false);
-
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const audioChunksRef = useRef<Blob[]>([]);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
   const isMarathi = language === 'mr-IN';
   const isHindi = language === 'hi-IN';
 
-  const defaultGreeting = isMarathi
-    ? `रामराम ${profile?.display_name || ''}! मी मंडीमित्र सर्वम AI सहाय्यक आहे. आपण मला कोणत्याही मंडीतील चालू भाव विचारू शकता, नवीन विक्री किंवा लॉटची नोंद करू शकता, किंवा हिशोब तपासू शकता.`
-    : isHindi
-    ? `नमस्ते ${profile?.display_name || ''}! मैं मंडीमित्र सर्वम AI सहायक हूँ। आप मुझसे मंडी भाव पूछ सकते हैं, बिक्री दर्ज कर सकते हैं या हिसाब-किताब जांच सकते हैं।`
-    : `Welcome ${profile?.display_name || ''}! I am your MandiMitra universal AI assistant. Ask about AGMARKNET rates, record sales or produce lots, or manage finances.`;
-
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      role: 'assistant',
-      text: defaultGreeting,
-    },
-  ]);
-
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, loading]);
+    if (isOpen && messagesEndRef.current && typeof messagesEndRef.current.scrollIntoView === 'function') {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [messages, loading, isOpen]);
 
   const quickPrompts = {
     'mr-IN': [
@@ -92,159 +74,16 @@ export const FloatingVoiceAssistant: React.FC = () => {
     ],
   };
 
-  const handleSend = async (textToSend?: string) => {
-    const query = (textToSend || inputQuery).trim();
-    if (!query) return;
-
-    setMessages((prev) => [...prev, { role: 'user', text: query }]);
-    setInputQuery('');
-    setLoading(true);
-
-    try {
-      const res: ChatResponse = await sarvamService.askAssistant(query, language);
-
-      // Handle direct UI action
-      if (res.ui_action) {
-        if (res.ui_action.type === 'navigate' && res.ui_action.route) {
-          navigate(res.ui_action.route);
-        } else if (res.ui_action.type === 'switch_language' && res.ui_action.language) {
-          setLanguage(res.ui_action.language as any);
-        }
-      }
-
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: 'assistant',
-          text: res.reply,
-          action_proposal: res.action_proposal || null,
-        },
-      ]);
-    } catch (err: any) {
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: 'assistant',
-          text:
-            isMarathi
-              ? 'सर्वम AI शी संपर्क करताना अडचण आली. कृपया पुन्हा प्रयत्न करा.'
-              : 'Error communicating with Sarvam AI. Please try again.',
-        },
-      ]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleExecuteAction = async (msgIndex: number, proposal: ActionProposal) => {
-    try {
-      setExecutingAction(true);
-      const res = await sarvamService.executeAction(proposal.action, proposal.parameters);
-
-      setMessages((prev) => {
-        const copy = [...prev];
-        copy[msgIndex] = {
-          ...copy[msgIndex],
-          executed: true,
-          executionResult: res.message || 'कृती यशस्वीरित्या पूर्ण झाली!',
-        };
-        return copy;
-      });
-
-      // Navigate or refresh if relevant
-      if (proposal.action === 'record_sale') {
-        navigate('/transactions');
-      } else if (proposal.action === 'create_selling_lot') {
-        navigate('/');
-      } else if (proposal.action === 'record_payment') {
-        navigate('/payments');
-      }
-    } catch (err: any) {
-      alert(err.message || 'Action failed');
-    } finally {
-      setExecutingAction(false);
-    }
-  };
-
-  const speakWithSarvam = async (text: string, index: number) => {
-    try {
-      setAudioLoadingIndex(index);
-      const res = await sarvamService.textToSpeech(text, language);
-      if (res.audio_base64) {
-        const audio = new Audio(`data:audio/wav;base64,${res.audio_base64}`);
-        await audio.play();
-      }
-    } catch (err) {
-      // Browser TTS fallback
-      if ('speechSynthesis' in window) {
-        window.speechSynthesis.cancel();
-        const utterance = new SpeechSynthesisUtterance(text);
-        utterance.lang = language === 'mr-IN' ? 'mr-IN' : language === 'hi-IN' ? 'hi-IN' : 'en-IN';
-        window.speechSynthesis.speak(utterance);
-      }
-    } finally {
-      setAudioLoadingIndex(null);
-    }
-  };
-
-  const startVoiceRecording = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      audioChunksRef.current = [];
-      const mediaRecorder = new MediaRecorder(stream);
-      mediaRecorderRef.current = mediaRecorder;
-
-      mediaRecorder.ondataavailable = (event) => {
-        if (event.data && event.data.size > 0) {
-          audioChunksRef.current.push(event.data);
-        }
-      };
-
-      mediaRecorder.onstop = async () => {
-        stream.getTracks().forEach((track) => track.stop());
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' });
-        if (audioBlob.size > 100) {
-          try {
-            setLoading(true);
-            const res = await sarvamService.transcribeAudio(audioBlob, language);
-            if (res.transcript) {
-              handleSend(res.transcript);
-            }
-          } catch (err) {
-            console.warn('STT transcription error:', err);
-          } finally {
-            setLoading(false);
-          }
-        }
-      };
-
-      mediaRecorder.start();
-      setIsRecording(true);
-    } catch (err) {
-      // Simulation fallback for restricted testing environments
-      const sample =
-        language === 'mr-IN'
-          ? 'आज लासलगावमध्ये कांद्याचा काय भाव आहे?'
-          : 'What is today’s price of Onion in Lasalgaon?';
-      handleSend(sample);
-    }
-  };
-
-  const stopVoiceRecording = () => {
-    if (mediaRecorderRef.current && isRecording) {
-      mediaRecorderRef.current.stop();
-      setIsRecording(false);
-    }
-  };
-
   return (
     <>
-      {/* Floating Trigger Button (Always visible on desktop and mobile, positioned clear of mobile nav) */}
+      {/* Floating Trigger Button (Always visible on desktop and mobile when drawer is closed) */}
       {!isOpen && (
         <button
-          onClick={() => setIsOpen(true)}
+          type="button"
+          onClick={() => openAssistant()}
           className="fixed bottom-20 right-4 sm:bottom-6 sm:right-6 md:bottom-8 md:right-8 z-40 bg-[#176B45] hover:bg-[#125335] text-white p-3.5 sm:px-4 sm:py-3 rounded-full shadow-2xl flex items-center gap-2.5 transition-all transform hover:scale-105 active:scale-95 group cursor-pointer border-2 border-emerald-300/40"
           title={t.assistant.title}
+          aria-label="Open Sarvam Voice Assistant"
         >
           <div className="relative">
             <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center">
@@ -261,9 +100,11 @@ export const FloatingVoiceAssistant: React.FC = () => {
         </button>
       )}
 
-      {/* Expandable Chat Drawer */}
+      {/* Expandable Universal Sarvam AI Chat Drawer */}
       {isOpen && (
         <div
+          role="dialog"
+          aria-label="Sarvam AI Assistant Panel"
           className={`fixed z-50 bg-white shadow-2xl border border-warm-300 flex flex-col transition-all duration-200 overflow-hidden ${
             isFullScreen
               ? 'inset-0 w-full h-full rounded-none'
@@ -292,25 +133,31 @@ export const FloatingVoiceAssistant: React.FC = () => {
 
             <div className="flex items-center gap-1">
               <button
-                onClick={() => setMessages([{ role: 'assistant', text: defaultGreeting }])}
-                className="p-1.5 text-emerald-200 hover:text-white hover:bg-white/10 rounded-lg transition"
+                type="button"
+                onClick={clearHistory}
+                className="p-1.5 text-emerald-200 hover:text-white hover:bg-white/10 rounded-lg transition cursor-pointer"
                 title="Clear conversation"
+                aria-label="Clear conversation"
               >
                 <Trash2 className="w-4 h-4" />
               </button>
               <button
-                onClick={() => setIsFullScreen(!isFullScreen)}
-                className="p-1.5 text-emerald-200 hover:text-white hover:bg-white/10 rounded-lg transition hidden sm:block"
+                type="button"
+                onClick={() => setIsFullScreen((prev) => !prev)}
+                className="p-1.5 text-emerald-200 hover:text-white hover:bg-white/10 rounded-lg transition hidden sm:block cursor-pointer"
                 title={isFullScreen ? 'Exit fullscreen' : 'Fullscreen'}
+                aria-label={isFullScreen ? 'Exit fullscreen' : 'Fullscreen'}
               >
                 {isFullScreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
               </button>
               <button
-                onClick={() => setIsOpen(false)}
-                className="p-1.5 text-emerald-200 hover:text-white hover:bg-white/10 rounded-lg transition"
-                title="Minimize assistant"
+                type="button"
+                onClick={closeAssistant}
+                className="p-1.5 text-emerald-200 hover:text-white hover:bg-white/10 rounded-lg transition cursor-pointer"
+                title="Close assistant"
+                aria-label="Close assistant"
               >
-                <Minus className="w-4 h-4" />
+                <X className="w-4 h-4" />
               </button>
             </div>
           </div>
@@ -344,6 +191,7 @@ export const FloatingVoiceAssistant: React.FC = () => {
 
                     {msg.role === 'assistant' && (
                       <button
+                        type="button"
                         onClick={() => speakWithSarvam(msg.text, idx)}
                         disabled={audioLoadingIndex === idx}
                         className="mt-2 text-[11px] text-[#176B45] font-semibold flex items-center gap-1 hover:underline cursor-pointer"
@@ -387,6 +235,7 @@ export const FloatingVoiceAssistant: React.FC = () => {
                       {!msg.executed ? (
                         <div className="flex gap-2 pt-1">
                           <button
+                            type="button"
                             onClick={() => handleExecuteAction(idx, msg.action_proposal!)}
                             disabled={executingAction}
                             className="flex-1 py-2 bg-[#176B45] hover:bg-[#125335] text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1 cursor-pointer transition"
@@ -425,8 +274,9 @@ export const FloatingVoiceAssistant: React.FC = () => {
             {quickPrompts[language as keyof typeof quickPrompts]?.slice(0, 3).map((prompt, i) => (
               <button
                 key={i}
+                type="button"
                 onClick={() => handleSend(prompt)}
-                className="px-2.5 py-1 bg-gray-100 hover:bg-emerald-50 hover:text-[#176B45] text-[11px] rounded-full whitespace-nowrap text-gray-700 transition"
+                className="px-2.5 py-1 bg-gray-100 hover:bg-emerald-50 hover:text-[#176B45] text-[11px] rounded-full whitespace-nowrap text-gray-700 transition cursor-pointer"
               >
                 {prompt}
               </button>
@@ -451,6 +301,7 @@ export const FloatingVoiceAssistant: React.FC = () => {
                     : 'bg-[#EAF3EA] text-[#176B45] hover:bg-emerald-100'
                 }`}
                 title={isRecording ? 'Stop recording' : 'Voice input (Saaras V4)'}
+                aria-label={isRecording ? 'Stop voice recording' : 'Start voice recording'}
               >
                 {isRecording ? <Square className="w-5 h-5 fill-current" /> : <Mic className="w-5 h-5" />}
               </button>
@@ -474,6 +325,7 @@ export const FloatingVoiceAssistant: React.FC = () => {
                 disabled={!inputQuery.trim() || loading}
                 className="p-2.5 bg-[#176B45] hover:bg-[#125335] disabled:opacity-40 text-white rounded-xl transition cursor-pointer"
                 title="Send"
+                aria-label="Send message"
               >
                 <Send className="w-5 h-5" />
               </button>
@@ -484,4 +336,3 @@ export const FloatingVoiceAssistant: React.FC = () => {
     </>
   );
 };
-
