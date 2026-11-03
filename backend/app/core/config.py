@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 days
     
     # Database: defaults to SQLite for immediate local/test execution, supports PostgreSQL
-    DATABASE_URL: str = "sqlite:///./mandimitra.db"
+    DATABASE_URL: str = "sqlite:////tmp/mandimitra.db" if os.environ.get("VERCEL") else "sqlite:///./mandimitra.db"
     
     # Third-Party Integrations
     SARVAM_API_KEY: Optional[str] = None
@@ -22,10 +22,12 @@ class Settings(BaseSettings):
     
     # Environment & CORS
     ENVIRONMENT: str = "development"
-    ALLOWED_ORIGINS: str = "http://localhost:5173,http://localhost:3000,http://127.0.0.1:5173"
+    ALLOWED_ORIGINS: str = "*"
 
     @property
     def cors_origins(self) -> List[str]:
+        if self.ALLOWED_ORIGINS == "*":
+            return ["*"]
         return [origin.strip() for origin in self.ALLOWED_ORIGINS.split(",") if origin.strip()]
 
     model_config = SettingsConfigDict(

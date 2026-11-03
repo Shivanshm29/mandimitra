@@ -32,7 +32,15 @@ export async function request<T>(endpoint: string, options: RequestInit = {}): P
     let errorDetail = 'Request failed';
     try {
       const errJson = await response.json();
-      errorDetail = errJson.detail || errJson.message || errorDetail;
+      if (typeof errJson.detail === 'string') {
+        errorDetail = errJson.detail;
+      } else if (Array.isArray(errJson.detail)) {
+        errorDetail = errJson.detail
+          .map((e: any) => (e.loc && e.loc.length > 1 ? `${e.loc[e.loc.length - 1]}: ${e.msg}` : e.msg || JSON.stringify(e)))
+          .join('; ');
+      } else if (typeof errJson.message === 'string') {
+        errorDetail = errJson.message;
+      }
     } catch {
       errorDetail = response.statusText || errorDetail;
     }
