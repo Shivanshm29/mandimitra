@@ -14,10 +14,11 @@ class ActionProposal(BaseModel):
 
 class FarmerChatResponse(BaseModel):
     reply: str
+    speech_text: Optional[str] = None
     language: str
     suggested_actions: List[str] = []
     action_proposal: Optional[ActionProposal] = None
-    ui_action: Optional[Dict[str, str]] = None  # e.g. {"type": "navigate", "route": "/mandi-intelligence"}
+    ui_action: Optional[Dict[str, Any]] = None  # e.g. {"type": "navigate", "route": "/mandi-intelligence"}
 
 class ExecuteActionRequest(BaseModel):
     action: str
@@ -29,8 +30,9 @@ class ExecuteActionResponse(BaseModel):
     data: Optional[Dict[str, Any]] = None
 
 class TTSRequest(BaseModel):
-    text: str = Field(..., min_length=1, max_length=2000)
+    text: str = Field(..., min_length=1, max_length=2500)
     language: Optional[str] = Field("mr-IN", description="mr-IN, hi-IN, or en-IN")
+    speed: Optional[float] = Field(1.0, ge=0.5, le=2.0, description="Speech playback speed")
 
 class TTSResponse(BaseModel):
     audio_base64: str

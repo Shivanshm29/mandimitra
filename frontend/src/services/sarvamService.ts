@@ -9,10 +9,18 @@ export interface ActionProposal {
 
 export interface ChatResponse {
   reply: string;
+  speech_text?: string;
   language: string;
   suggested_actions: string[];
   action_proposal?: ActionProposal | null;
-  ui_action?: { type: string; route?: string; language?: string } | null;
+  ui_action?: {
+    type: 'navigate' | 'open_modal' | 'switch_language';
+    route?: string;
+    modal?: 'RECORD_SALE' | 'RECORD_PAYMENT' | 'SCAN_BILL' | 'ADD_HARVEST' | 'CREATE_LOT';
+    prefill?: Record<string, any>;
+    language?: string;
+    message?: string;
+  } | null;
 }
 
 export interface ExecuteActionResponse {
@@ -78,10 +86,10 @@ export const sarvamService = {
     });
   },
 
-  async textToSpeech(text: string, language: string = 'mr-IN'): Promise<TTSResponse> {
+  async textToSpeech(text: string, language: string = 'mr-IN', speed: number = 1.0): Promise<TTSResponse> {
     return request<TTSResponse>('/sarvam/tts', {
       method: 'POST',
-      body: JSON.stringify({ text, language }),
+      body: JSON.stringify({ text, language, speed }),
     });
   },
 

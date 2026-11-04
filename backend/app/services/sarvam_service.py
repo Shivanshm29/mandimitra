@@ -75,6 +75,67 @@ If an item is not legible or missing, use null or 0.
 Return ONLY valid raw JSON without any markdown formatting or commentary.
 """
 
+def clean_text_for_speech(text: str, language: str = "mr-IN") -> str:
+    """
+    Cleans markdown formatting, raw JSON, symbols, and formatting markers
+    from assistant text to produce natural, human-sounding speech for TTS.
+    Converts currency symbols, unit abbreviations, and numbers into spoken words.
+    Never reads asterisks, hashtags, backticks, or raw JSON structures.
+    """
+    if not text:
+        return ""
+
+    # 1. Strip code/action/ui_action blocks
+    cleaned = re.sub(r"```(?:action|ui_action|json)?[\s\S]*?```", "", text, flags=re.IGNORECASE)
+    cleaned = re.sub(r"`[^`]*`", "", cleaned)
+
+    # 2. Never speak raw JSON, [object Object] or internal dicts
+    cleaned = re.sub(r"\[object Object\]", "", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\{[\s\S]*?\}", "", cleaned)
+
+    # 3. Currency and unit naturalization before stripping punctuation
+    if language == "en-IN":
+        cleaned = re.sub(r"₹\s*([\d,]+(?:\.\d+)?)", r"\1 rupees", cleaned)
+        cleaned = re.sub(r"(?:/qtl|/quintal|/Qtl)", " per quintal", cleaned, flags=re.IGNORECASE)
+        cleaned = re.sub(r"\bQtl\b", "quintals", cleaned)
+    elif language == "hi-IN":
+        cleaned = re.sub(r"₹\s*([\d,]+(?:\.\d+)?)", r"\1 रुपये", cleaned)
+        cleaned = re.sub(r"(?:/qtl|/quintal|/Qtl|प्रति क्विंटल)", " प्रति क्विंटल", cleaned, flags=re.IGNORECASE)
+        cleaned = re.sub(r"\bQtl\b", "क्विंटल", cleaned)
+    else:  # mr-IN
+        cleaned = re.sub(r"₹\s*([\d,]+(?:\.\d+)?)", r"\1 रुपये", cleaned)
+        cleaned = re.sub(r"(?:/qtl|/quintal|/Qtl|प्रति क्विंटल)", " प्रति क्विंटल", cleaned, flags=re.IGNORECASE)
+        cleaned = re.sub(r"\bQtl\b", "क्विंटल", cleaned)
+
+    # 4. Remove Markdown headings (# Heading)
+    cleaned = re.sub(r"^#+\s*", "", cleaned, flags=re.MULTILINE)
+
+    # 5. Remove bold / italic markers (**text**, *text*, __text__, _text_)
+    cleaned = re.sub(r"\*\*([^*]+)\*\*", r"\1", cleaned)
+    cleaned = re.sub(r"\*([^*]+)\*", r"\1", cleaned)
+    cleaned = re.sub(r"__([^_]+)__", r"\1", cleaned)
+    cleaned = re.sub(r"_([^_]+)_", r"\1", cleaned)
+
+    # 6. Strip bullet lists (- , * , • ) at line start
+    cleaned = re.sub(r"^\s*[-*•]\s*", "", cleaned, flags=re.MULTILINE)
+
+    # 7. Strip table pipes and brackets
+    cleaned = re.sub(r"\|", " ", cleaned)
+    cleaned = re.sub(r"[\[\]]", " ", cleaned)
+
+    # 8. Clean redundant symbols
+    cleaned = re.sub(r"[*~_]{2,}", " ", cleaned)
+    cleaned = re.sub(r"[-=]{3,}", " ", cleaned)
+
+    # 9. Normalize spacing and punctuation for smooth, natural speech pacing
+    cleaned = re.sub(r"[ \t]+", " ", cleaned)
+    cleaned = re.sub(r"\n\s*\n+", ". ", cleaned)
+    cleaned = re.sub(r"\n", ". ", cleaned)
+    cleaned = re.sub(r"\.\s*\.+", ".", cleaned)
+    cleaned = re.sub(r"\s+([.,?!])", r"\1", cleaned)
+
+    return cleaned.strip()
+
 class SarvamService:
     @staticmethod
     def _get_client():
@@ -161,21 +222,48 @@ class SarvamService:
 
         user_content = f"{data.message}\n\n[{lang_instruction}]"
 
-        # Heuristic UI Action Detection
-        ui_action: Optional[Dict[str, str]] = None
+        # Comprehensive Heuristic UI Action Detection
+        ui_action: Optional[Dict[str, Any]] = None
         lower_msg = data.message.lower()
-        if any(w in lower_msg for w in ["मंडी", "बाजार", "भाव", "mandi", "prices", "rates"]):
-            if "दाखवा" in lower_msg or "show" in lower_msg or "पहा" in lower_msg or "खोजें" in lower_msg:
-                ui_action = {"type": "navigate", "route": "/mandi-intelligence"}
-        if any(w in lower_msg for w in ["नफा", "सल्लागार", "profit", "coach", "हिशोब", "बाकी"]):
-            if "दाखवा" in lower_msg or "show" in lower_msg or "विश्लेषण" in lower_msg:
-                ui_action = {"type": "navigate", "route": "/profit-coach"}
-        if "हिंदी" in lower_msg or "hindi" in lower_msg:
+
+        # Language switches
+        if any(w in lower_msg for w in ["हिंदीमध्ये बोला", "हिंदी", "hindi", "talk in hindi"]):
             ui_action = {"type": "switch_language", "language": "hi-IN"}
-        elif "मराठी" in lower_msg or "marathi" in lower_msg:
+        elif any(w in lower_msg for w in ["मराठीत बोला", "मराठी", "marathi", "talk in marathi"]):
             ui_action = {"type": "switch_language", "language": "mr-IN"}
-        elif "english" in lower_msg:
+        elif any(w in lower_msg for w in ["english", "in english", "इंग्रजीत"]):
             ui_action = {"type": "switch_language", "language": "en-IN"}
+
+        # Direct Modal Openers
+        elif any(w in lower_msg for w in ["नवीन विक्री", "विक्री नोंदवा", "record sale", "record a sale", "विक्री करायची", "sell my"]):
+            ui_action = {
+                "type": "open_modal",
+                "modal": "RECORD_SALE",
+                "prefill": {"commodity": "Onion" if "कांदा" in lower_msg else "Soybean" if "सोयाबीन" in lower_msg else None}
+            }
+        elif any(w in lower_msg for w in ["पेमेंट नोंदवा", "नवीन पेमेंट", "add payment", "record payment"]):
+            ui_action = {"type": "open_modal", "modal": "RECORD_PAYMENT"}
+        elif any(w in lower_msg for w in ["पावती स्कॅन", "काटा पावती", "scan bill", "scan slip", "scan receipt"]):
+            ui_action = {"type": "open_modal", "modal": "SCAN_BILL"}
+        elif any(w in lower_msg for w in ["कापणी नोंदवा", "नवीन कापणी", "add harvest", "create harvest"]):
+            ui_action = {"type": "open_modal", "modal": "ADD_HARVEST"}
+        elif any(w in lower_msg for w in ["लॉट तयार करा", "नवीन लॉट", "create lot", "add lot", "add selling lot"]):
+            ui_action = {"type": "open_modal", "modal": "CREATE_LOT"}
+
+        # Navigation Actions
+        elif any(w in lower_msg for w in ["विक्री दाखवा", "माझ्या नोंदी", "open sales", "show transactions", "show my records", "माझे व्यवहार", "sales records"]):
+            ui_action = {"type": "navigate", "route": "/transactions"}
+        elif any(w in lower_msg for w in ["कापणी दाखवा", "शेतमाल साठा", "harvest records", "show harvest", "lots", "लॉट दाखवा", "माझे लॉट"]):
+            ui_action = {"type": "navigate", "route": "/selling-lots"}
+        elif any(w in lower_msg for w in ["पैसे बाकी", "बाकी देणी", "देणी", "pending payments", "pending receivables", "माझे पैसे", "पेमेंट"]):
+            ui_action = {"type": "navigate", "route": "/payments"}
+        elif any(w in lower_msg for w in ["नफा", "सल्लागार", "profit coach", "profit analysis", "नफा विश्लेषण"]):
+            ui_action = {"type": "navigate", "route": "/profit-coach"}
+        elif any(w in lower_msg for w in ["कुठे विकू", "विक्री शिफारस", "recommend mandi", "where to sell", "compare mandis"]):
+            ui_action = {"type": "navigate", "route": "/selling-recommendations"}
+        elif any(w in lower_msg for w in ["मंडी", "बाजार", "भाव", "mandi", "prices", "rates", "बाजारभाव"]):
+            if any(w in lower_msg for w in ["दाखवा", "show", "पहा", "खोजें", "open", "take me"]):
+                ui_action = {"type": "navigate", "route": "/mandi-intelligence"}
 
         try:
             client = SarvamService._get_client()
@@ -244,8 +332,11 @@ class SarvamService:
             elif data.language == "en-IN":
                 actions = ["Find Best Mandi", "Check Receivables", "Record New Sale"]
 
+            speech_text = clean_text_for_speech(reply_text, data.language or "mr-IN")
+
             return FarmerChatResponse(
                 reply=reply_text.strip(),
+                speech_text=speech_text,
                 language=data.language or "mr-IN",
                 suggested_actions=actions,
                 action_proposal=action_proposal,
@@ -258,8 +349,10 @@ class SarvamService:
             elif data.language == "en-IN":
                 fallback = f"Error connecting to Sarvam AI: {str(e)[:150]}"
 
+            speech_fallback = clean_text_for_speech(fallback, data.language or "mr-IN")
             return FarmerChatResponse(
                 reply=fallback,
+                speech_text=speech_fallback,
                 language=data.language or "mr-IN",
                 suggested_actions=["Retry Query", "Check Mandi Prices"]
             )
@@ -336,12 +429,17 @@ class SarvamService:
         if lang == "hi-IN":
             speaker = "aayan_hi_conversational"
         elif lang == "en-IN":
-            speaker = "aditi_en_stories"
+            speaker = "amelia_en_conversational"
+
+        # Crucial: Always clean Markdown formatting, asterisks, headings, and raw JSON before speech synthesis
+        spoken_text = clean_text_for_speech(data.text, lang)
+        if not spoken_text.strip():
+            spoken_text = "..."
 
         try:
             client = SarvamService._get_client()
             res = client.text_to_speech.convert(
-                text=data.text[:1500],
+                text=spoken_text[:1500],
                 language_code=lang,
                 speaker=speaker,
                 model="bulbul:v4-flash"

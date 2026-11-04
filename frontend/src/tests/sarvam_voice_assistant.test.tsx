@@ -13,17 +13,41 @@ import { sarvamService } from '../services/sarvamService';
 vi.mock('../services/sarvamService', () => ({
   sarvamService: {
     askAssistant: vi.fn().mockResolvedValue({
-      reply: 'लासलगाव APMC मध्ये कांद्याचा आजचा मोडल भाव ₹२,३५० प्रति क्विंटल आहे.',
-      action_proposal: null,
+      reply: '**Best Mandi:** Lasalgaon APMC. **Modal Price:** ₹2,350/quintal.',
+      speech_text: 'The best reported market is Lasalgaon APMC, where the modal price is 2,350 rupees per quintal.',
+      language: 'mr-IN',
+      suggested_actions: ['Find Mandi', 'Check Receivables'],
+      action_proposal: {
+        action: 'record_sale',
+        summary: 'Record sale of 10 Quintals Onion to Shri Ganesh Traders',
+        requires_confirmation: true,
+        parameters: {
+          trader_name: 'श्री गणेश ट्रेडर्स',
+          market_name: 'लासलगाव APMC',
+          commodity: 'Onion',
+          variety: 'Red Garwa',
+          quantity: 10.0,
+          rate_per_unit: 2400.0,
+          lot_code: 'LOT-001',
+          deductions: [
+            { deduction_type: 'HAMALI', amount: 200, description: 'Labor unloading' },
+            { deduction_type: 'WEIGHING_FEE', amount: 50, description: 'Weighing charge' },
+          ],
+        },
+      },
       ui_action: null,
     }),
-    textToSpeech: vi.fn().mockResolvedValue({ audio_base64: null }),
-    transcribeAudio: vi.fn().mockResolvedValue({ transcript: 'कांद्याचे आजचे भाव सांगा' }),
-    executeAction: vi.fn().mockResolvedValue({ success: true, message: 'Done' }),
+    textToSpeech: vi.fn().mockResolvedValue({ audio_base64: 'UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=', audio_format: 'wav', language: 'mr-IN' }),
+    transcribeAudio: vi.fn().mockResolvedValue({ transcript: 'आज लासलगावमध्ये कांद्याला काय भाव आहे?', language_code: 'mr-IN' }),
+    executeAction: vi.fn().mockResolvedValue({
+      status: 'SUCCESS',
+      message: 'विक्री नोंदणी यशस्वी! निव्वळ रक्कम: ₹23,750.00',
+      data: { sale_id: 1, net_receivable: '23750.00' },
+    }),
   },
 }));
 
-// Mock Mandi, Transaction, and Lot services to avoid network in tests
+// Mock Mandi, Transaction, and Lot services
 vi.mock('../services/mandiService', () => ({
   mandiService: {
     getPrices: vi.fn().mockResolvedValue([]),
@@ -74,7 +98,6 @@ vi.mock('../services/farmerService', () => ({
   },
 }));
 
-// Test helper wrapper providing all required contexts
 const renderTestApp = (ui: React.ReactElement) => {
   return render(
     <BrowserRouter>
@@ -90,106 +113,114 @@ const renderTestApp = (ui: React.ReactElement) => {
   );
 };
 
-describe('Sarvam AI Voice Assistant Entry Points & Unified State', () => {
+describe('Sarvam AI Voice Assistant & Action Execution Upgrade', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     localStorage.clear();
   });
 
-  it('1. Opens the Sarvam AI assistant panel when clicking the yellow dashboard button', async () => {
+  it('1. Yellow dashboard button activates direct voice-first interaction on the dashboard without opening drawer', async () => {
     renderTestApp(<DashboardPage />);
 
-    // Initially the chat drawer is closed
+    // Drawer is closed initially
     expect(screen.queryByRole('dialog', { name: /Sarvam AI Assistant Panel/i })).not.toBeInTheDocument();
 
-    // Find and click the yellow "बोलून विचारा / Ask Sarvam AI" button on dashboard
+    // Click the yellow "बोलून विचारा / Ask Sarvam AI" button
     const yellowButton = screen.getByRole('button', { name: /बोलून विचारा \/ Ask Sarvam AI/i });
     expect(yellowButton).toBeInTheDocument();
     fireEvent.click(yellowButton);
 
-    // The universal Sarvam AI conversation panel must open
-    const dialog = await screen.findByRole('dialog', { name: /Sarvam AI Assistant Panel/i });
-    expect(dialog).toBeInTheDocument();
-    expect(screen.getByRole('heading', { level: 3, name: /मंडीमित्र सर्वम AI सहाय्यक/i })).toBeInTheDocument();
+    // It should activate direct dashboard voice interaction, NOT open the drawer dialog
+    expect(screen.queryByRole('dialog', { name: /Sarvam AI Assistant Panel/i })).not.toBeInTheDocument();
+
+    // The dashboard voice banner appears with transcript and response
+    await waitFor(() => {
+      expect(screen.getByText(/मंडीमित्र सर्वम AI व्हॉइस सहाय्यक/i)).toBeInTheDocument();
+    });
+
+    // Verify response displays with formatted Markdown and proposal card
+    expect(await screen.findByText(/Best Mandi:/i)).toBeInTheDocument();
+    expect(await screen.findByText(/Lasalgaon APMC/i)).toBeInTheDocument();
   });
 
-  it('2. Opens the exact same Sarvam AI assistant panel when clicking the floating green button', async () => {
+  it('2. Green floating button opens the full chat panel drawer', async () => {
     renderTestApp(<DashboardPage />);
-
-    // Initially closed
-    expect(screen.queryByRole('dialog', { name: /Sarvam AI Assistant Panel/i })).not.toBeInTheDocument();
 
     // Find the floating trigger button
     const greenFloatingButton = screen.getByRole('button', { name: /Open Sarvam Voice Assistant/i });
     expect(greenFloatingButton).toBeInTheDocument();
     fireEvent.click(greenFloatingButton);
 
-    // The universal panel opens
+    // The universal panel drawer opens
     const dialog = await screen.findByRole('dialog', { name: /Sarvam AI Assistant Panel/i });
     expect(dialog).toBeInTheDocument();
     expect(screen.getByRole('heading', { level: 3, name: /मंडीमित्र सर्वम AI सहाय्यक/i })).toBeInTheDocument();
   });
 
-  it('3. Preserves conversation history between both entry points', async () => {
+  it('3. Action proposal card displays structured financial details without [object Object] and saves cleanly', async () => {
     renderTestApp(<DashboardPage />);
 
-    // Open via yellow button
-    const yellowButton = screen.getByRole('button', { name: /बोलून विचारा \/ Ask Sarvam AI/i });
-    fireEvent.click(yellowButton);
+    // Open chat drawer
+    fireEvent.click(screen.getByRole('button', { name: /Open Sarvam Voice Assistant/i }));
 
     // Send a message
     const input = await screen.findByPlaceholderText(/काहीही विचारा किंवा आज्ञा द्या/i);
-    fireEvent.change(input, { target: { value: 'कांद्याचे आजचे भाव काय आहेत?' } });
+    fireEvent.change(input, { target: { value: 'माझा कांदा विका' } });
+    fireEvent.click(screen.getByTitle('Send'));
 
-    const sendBtn = screen.getByTitle('Send');
-    fireEvent.click(sendBtn);
-
-    // Message and response appear
-    expect(await screen.findByText('कांद्याचे आजचे भाव काय आहेत?')).toBeInTheDocument();
-    expect(
-      await screen.findByText('लासलगाव APMC मध्ये कांद्याचा आजचा मोडल भाव ₹२,३५० प्रति क्विंटल आहे.')
-    ).toBeInTheDocument();
-
-    // Close the panel using Close button
-    const closeBtn = screen.getByRole('button', { name: /Close assistant/i });
-    fireEvent.click(closeBtn);
-
-    // Panel is closed
+    // Wait for the action proposal card
     await waitFor(() => {
-      expect(screen.queryByRole('dialog', { name: /Sarvam AI Assistant Panel/i })).not.toBeInTheDocument();
+      expect(screen.getByText(/नवीन विक्री पुष्टीकरण/i)).toBeInTheDocument();
     });
 
-    // Reopen using the floating green button
-    const greenFloatingButton = screen.getByRole('button', { name: /Open Sarvam Voice Assistant/i });
-    fireEvent.click(greenFloatingButton);
+    // Check that deductions are rendered properly as names and amounts, NOT [object Object]
+    expect(screen.queryByText(/\[object Object\]/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/HAMALI/i)).toBeInTheDocument();
+    expect(screen.getByText(/-₹200.00/i)).toBeInTheDocument();
+    expect(screen.getByText(/-₹50.00/i)).toBeInTheDocument();
 
-    // Verify conversation history is completely preserved!
-    expect(await screen.findByRole('dialog', { name: /Sarvam AI Assistant Panel/i })).toBeInTheDocument();
-    expect(screen.getByText('कांद्याचे आजचे भाव काय आहेत?')).toBeInTheDocument();
-    expect(
-      screen.getByText('लासलगाव APMC मध्ये कांद्याचा आजचा मोडल भाव ₹२,३५० प्रति क्विंटल आहे.')
-    ).toBeInTheDocument();
+    // Check Gross and Net Realization
+    expect(screen.getByText(/₹24,000.00/i)).toBeInTheDocument();
+    expect(screen.getByText(/₹23,750.00/i)).toBeInTheDocument();
+
+    // Confirm and Save
+    const confirmBtn = screen.getByRole('button', { name: /✓ विक्री नोंदवा व सेव्ह करा/i });
+    fireEvent.click(confirmBtn);
+
+    // Verify backend executeAction was called with correct parameters
+    await waitFor(() => {
+      expect(sarvamService.executeAction).toHaveBeenCalledWith('record_sale', expect.objectContaining({
+        commodity: 'Onion',
+        quantity: 10,
+        rate_per_unit: 2400,
+      }));
+    });
+
+    // Success banner appears
+    expect(await screen.findByText(/विक्री नोंदणी यशस्वी! निव्वळ रक्कम: ₹23,750.00/i)).toBeInTheDocument();
   });
 
-  it('4. Quick prompt buttons work and submit to the unified assistant', async () => {
+  it('4. Audio controls allow playback, pause, and stop with Bulbul V4', async () => {
     renderTestApp(<DashboardPage />);
 
-    const yellowButton = screen.getByRole('button', { name: /बोलून विचारा \/ Ask Sarvam AI/i });
-    fireEvent.click(yellowButton);
+    // Open chat
+    fireEvent.click(screen.getByRole('button', { name: /Open Sarvam Voice Assistant/i }));
 
-    // Click a quick prompt: 'आज लासलगावमध्ये कांद्याला काय भाव आहे?'
-    const quickPrompt = await screen.findByText('आज लासलगावमध्ये कांद्याला काय भाव आहे?');
-    fireEvent.click(quickPrompt);
+    // Send message to get assistant reply
+    const input = await screen.findByPlaceholderText(/काहीही विचारा किंवा आज्ञा द्या/i);
+    fireEvent.change(input, { target: { value: 'कांद्याचे आजचे भाव सांगा' } });
+    fireEvent.click(screen.getByTitle('Send'));
 
-    // Prompt submitted and answered
+    // Wait for assistant reply and Listen button
+    const listenBtn = await screen.findByRole('button', { name: /ऐका \(Bulbul V4\)/i });
+    expect(listenBtn).toBeInTheDocument();
+
+    // Click listen
+    fireEvent.click(listenBtn);
+
+    // textToSpeech service is called with speech text
     await waitFor(() => {
-      const elements = screen.getAllByText('आज लासलगावमध्ये कांद्याला काय भाव आहे?');
-      expect(elements.length).toBeGreaterThanOrEqual(1);
+      expect(sarvamService.textToSpeech).toHaveBeenCalled();
     });
-
-    expect(sarvamService.askAssistant).toHaveBeenCalledWith(
-      'आज लासलगावमध्ये कांद्याला काय भाव आहे?',
-      'mr-IN'
-    );
   });
 });

@@ -257,33 +257,104 @@ class ActionRegistry:
             }
 
         elif action_name == "record_sale":
-            deductions_in = []
-            for d in params.get("deductions", []):
-                deductions_in.append(DeductionCreate(
-                    deduction_type=d.get("deduction_type", "OTHER"),
-                    amount=Decimal(str(d.get("amount", "0"))),
-                    description=d.get("description")
-                ))
+            # 1. Resolve Selling Lot: support lot_id (integer), lot_code (e.g. 'LOT-001'), or active commodity match
+            lot: Optional[SellingLot] = None
+            lot_param = params.get("lot_id") or params.get("lot_code")
+            if lot_param is not None and str(lot_param).strip():
+                raw_str = str(lot_param).strip()
+                if raw_str.isdigit():
+                    lot = db.scalar(
+                        select(SellingLot).where(SellingLot.farmer_id == farmer_id, SellingLot.id == int(raw_str))
+                    )
+                if not lot:
+                    lot = db.scalar(
+                        select(SellingLot).where(SellingLot.farmer_id == farmer_id, SellingLot.lot_code == raw_str)
+                    )
+
+            comm_name = str(params.get("commodity") or (lot.commodity if lot else "Onion")).strip()
+            if not lot and comm_name:
+                # Attempt to match active lot with remaining inventory for this commodity
+                lot = db.scalar(
+                    select(SellingLot).where(
+                        SellingLot.farmer_id == farmer_id,
+                        SellingLot.commodity.ilike(comm_name),
+                        SellingLot.available_quantity > 0
+                    ).order_by(desc(SellingLot.created_at))
+                )
+
+            # 2. Resilient deductions parsing: handles list of dicts, dict map, or empty
+            deductions_in: List[DeductionCreate] = []
+            raw_ded = params.get("deductions") or []
+            if isinstance(raw_ded, dict):
+                for k, v in raw_ded.items():
+                    try:
+                        amt = Decimal(str(v or "0")).quantize(Decimal("0.01"))
+                        if amt > Decimal("0.00"):
+                            deductions_in.append(DeductionCreate(
+                                deduction_type=str(k).upper(),
+                                amount=amt,
+                                description=f"{k} deduction"
+                            ))
+                    except Exception:
+                        pass
+            elif isinstance(raw_ded, list):
+                for item in raw_ded:
+                    if isinstance(item, dict):
+                        try:
+                            amt = Decimal(str(item.get("amount") or "0")).quantize(Decimal("0.01"))
+                            if amt > Decimal("0.00"):
+                                dtype = str(item.get("deduction_type") or "OTHER").upper()
+                                desc_val = item.get("description") or f"{dtype} fee"
+                                deductions_in.append(DeductionCreate(
+                                    deduction_type=dtype,
+                                    amount=amt,
+                                    description=desc_val
+                                ))
+                        except Exception:
+                            pass
+
+            # 3. Numeric extraction with Decimal precision
+            qty = Decimal(str(params.get("quantity") or "10.00")).quantize(Decimal("0.01"))
+            rate = Decimal(str(params.get("rate_per_unit") or "2000.00")).quantize(Decimal("0.01"))
+            init_pay = Decimal(str(params.get("initial_payment_received") or "0.00")).quantize(Decimal("0.01"))
 
             payload = SaleCreate(
-                trader_name=str(params.get("trader_name") or "Local Trader"),
-                market_name=params.get("market_name"),
-                commodity=str(params.get("commodity") or "Onion"),
-                variety=str(params.get("variety") or "Standard"),
-                lot_id=params.get("lot_id"),
-                quantity=Decimal(str(params.get("quantity") or "10.00")),
-                rate_per_unit=Decimal(str(params.get("rate_per_unit") or "2000.00")),
-                initial_payment_received=Decimal(str(params.get("initial_payment_received") or "0.00")),
+                trader_name=str(params.get("trader_name") or "स्थानिक व्यापारी (Local Trader)"),
+                market_name=params.get("market_name") or (lot.storage_location if lot else None),
+                commodity=comm_name,
+                variety=str(params.get("variety") or (lot.variety if lot else "Standard")),
+                lot_id=lot.id if lot else None,
+                quantity=qty,
+                rate_per_unit=rate,
+                initial_payment_received=init_pay,
                 deductions=deductions_in
             )
             sale = TransactionService.create_sale(db, farmer_id, payload)
+            
+            # Formatted deduction breakdown for clean UI presentation
+            ded_breakdown = [
+                {"deduction_type": d.deduction_type, "amount": str(d.amount), "description": d.description}
+                for d in deductions_in
+            ]
+
             return {
                 "status": "SUCCESS",
                 "message": f"विक्री नोंदणी यशस्वी! निव्वळ रक्कम: ₹{sale.net_receivable:,.2f}",
                 "sale_id": sale.id,
                 "trader_name": sale.trader_name,
+                "market_name": sale.market_name,
+                "commodity": sale.commodity,
+                "variety": sale.variety,
+                "quantity": str(sale.quantity),
+                "quantity_unit": sale.quantity_unit,
+                "rate_per_unit": str(sale.rate_per_unit),
+                "gross_amount": str(sale.gross_amount),
+                "total_deductions": str(sale.total_deductions),
                 "net_receivable": str(sale.net_receivable),
-                "outstanding_balance": str(sale.outstanding_balance)
+                "outstanding_balance": str(sale.outstanding_balance),
+                "deductions": ded_breakdown,
+                "lot_code": lot.lot_code if lot else None,
+                "remaining_lot_quantity": str(lot.available_quantity) if lot else None
             }
 
         elif action_name == "record_payment":

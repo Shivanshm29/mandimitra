@@ -9,15 +9,22 @@ import {
   Send,
   Mic,
   Volume2,
+  VolumeX,
+  Play,
+  Pause,
+  RotateCcw,
   User,
   Trash2,
   CheckCircle2,
   Loader2,
   Square,
+  Languages,
 } from 'lucide-react';
 import { useLanguage } from '../app/LanguageContext';
 import { useAssistant } from '../app/AssistantContext';
 import { Badge } from './Badge';
+import { MarkdownView } from './MarkdownView';
+import { ActionProposalCard } from './ActionProposalCard';
 
 export const FloatingVoiceAssistant: React.FC = () => {
   const { language, t } = useLanguage();
@@ -35,11 +42,19 @@ export const FloatingVoiceAssistant: React.FC = () => {
     isRecording,
     startVoiceRecording,
     stopVoiceRecording,
-    audioLoadingIndex,
-    speakWithSarvam,
-    executingAction,
+    playingIndex,
+    isAudioPaused,
+    isLoadingAudio,
+    playbackRate,
+    playAudio,
+    pauseAudio,
+    resumeAudio,
+    stopAudio,
+    replayAudio,
+    cyclePlaybackRate,
     handleExecuteAction,
     clearHistory,
+    toggleMessageLanguage,
   } = useAssistant();
 
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
@@ -59,18 +74,21 @@ export const FloatingVoiceAssistant: React.FC = () => {
       'माझ्या शेतमालाच्या विक्रीचा हिशोब दाखवा',
       'सोयाबीनसाठी सर्वोत्तम मंडी कोणती?',
       'नफा व थकीत देणी सल्लागार दाखवा',
+      'नवीन विक्री नोंदवा',
     ],
     'hi-IN': [
       'आज लासलगांव में प्याज का मॉडल भाव क्या है?',
       'मेरी कुल बकाया राशि दिखाएं',
       'सोयाबीन बेचने के लिए सबसे अच्छी मंडी कौन सी है?',
       'मुनाफा सलाहकार खोलें',
+      'नई बिक्री दर्ज करें',
     ],
     'en-IN': [
       "What is today's modal price for Onion in Lasalgaon?",
       'Show my pending receivables and profit coach',
       'Best market recommendation for 50 Qtl Soybean',
       'Navigate to selling lots',
+      'Record a new sale',
     ],
   };
 
@@ -108,7 +126,7 @@ export const FloatingVoiceAssistant: React.FC = () => {
           className={`fixed z-50 bg-white shadow-2xl border border-warm-300 flex flex-col transition-all duration-200 overflow-hidden ${
             isFullScreen
               ? 'inset-0 w-full h-full rounded-none'
-              : 'bottom-4 right-4 md:bottom-6 md:right-6 w-[95vw] sm:w-[440px] h-[85vh] max-h-[640px] rounded-3xl'
+              : 'bottom-4 right-4 md:bottom-6 md:right-6 w-[95vw] sm:w-[460px] h-[85vh] max-h-[660px] rounded-3xl'
           }`}
         >
           {/* Header */}
@@ -164,101 +182,145 @@ export const FloatingVoiceAssistant: React.FC = () => {
 
           {/* Messages Container */}
           <div className="flex-1 overflow-y-auto p-4 space-y-3.5 bg-gray-50/50">
-            {messages.map((msg, idx) => (
-              <div
-                key={idx}
-                className={`flex gap-2.5 ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}
-              >
-                <div
-                  className={`w-7 h-7 rounded-lg shrink-0 flex items-center justify-center text-xs font-bold ${
-                    msg.role === 'user'
-                      ? 'bg-emerald-700 text-white'
-                      : 'bg-white border border-gray-200 text-[#176B45]'
-                  }`}
-                >
-                  {msg.role === 'user' ? <User className="w-4 h-4" /> : <Bot className="w-4 h-4" />}
-                </div>
+            {messages.map((msg, idx) => {
+              const isCurrentPlaying = playingIndex === idx;
 
-                <div className="max-w-[85%] space-y-2">
+              return (
+                <div
+                  key={msg.id || idx}
+                  className={`flex gap-2.5 ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}
+                >
                   <div
-                    className={`p-3.5 rounded-2xl text-xs sm:text-sm leading-relaxed ${
+                    className={`w-7 h-7 rounded-lg shrink-0 flex items-center justify-center text-xs font-bold ${
                       msg.role === 'user'
-                        ? 'bg-[#176B45] text-white rounded-tr-none'
-                        : 'bg-white text-gray-900 border border-gray-200 shadow-xs rounded-tl-none'
+                        ? 'bg-emerald-700 text-white'
+                        : 'bg-white border border-gray-200 text-[#176B45]'
                     }`}
                   >
-                    <div className="whitespace-pre-line">{msg.text}</div>
-
-                    {msg.role === 'assistant' && (
-                      <button
-                        type="button"
-                        onClick={() => speakWithSarvam(msg.text, idx)}
-                        disabled={audioLoadingIndex === idx}
-                        className="mt-2 text-[11px] text-[#176B45] font-semibold flex items-center gap-1 hover:underline cursor-pointer"
-                      >
-                        <Volume2
-                          className={`w-3.5 h-3.5 ${audioLoadingIndex === idx ? 'animate-pulse text-amber-600' : ''}`}
-                        />
-                        {audioLoadingIndex === idx
-                          ? 'आवाज तयार होत आहे...'
-                          : isMarathi
-                          ? 'सर्वम आवाजात ऐका'
-                          : 'Listen (Bulbul V4)'}
-                      </button>
-                    )}
+                    {msg.role === 'user' ? <User className="w-4 h-4" /> : <Bot className="w-4 h-4" />}
                   </div>
 
-                  {/* Interactive Action Proposal Card */}
-                  {msg.action_proposal && (
-                    <div className="p-3.5 bg-white rounded-2xl border-2 border-emerald-500/80 shadow-md space-y-2 text-xs">
-                      <div className="flex items-center justify-between border-b pb-1.5">
-                        <span className="font-bold text-[#176B45] flex items-center gap-1 uppercase tracking-wide text-[10px]">
-                          <CheckCircle2 className="w-3.5 h-3.5" />
-                          कृती पुष्टीकरण • Action Confirmation
-                        </span>
-                        <span className="font-mono text-[10px] text-gray-500">
-                          {msg.action_proposal.action}
-                        </span>
-                      </div>
+                  <div className="max-w-[85%] space-y-2">
+                    <div
+                      className={`p-3.5 rounded-2xl text-xs sm:text-sm leading-relaxed ${
+                        msg.role === 'user'
+                          ? 'bg-[#176B45] text-white rounded-tr-none'
+                          : 'bg-white text-gray-900 border border-gray-200 shadow-xs rounded-tl-none'
+                      }`}
+                    >
+                      {/* Markdown Formatted Text */}
+                      <MarkdownView content={msg.text} />
 
-                      <p className="font-bold text-gray-900">{msg.action_proposal.summary}</p>
-
-                      <div className="bg-gray-50 p-2 rounded-xl space-y-1 text-gray-700 font-mono text-[11px]">
-                        {Object.entries(msg.action_proposal.parameters).map(([k, v]) => (
-                          <div key={k} className="flex justify-between">
-                            <span className="text-gray-500">{k}:</span>
-                            <span className="font-semibold text-gray-900">{String(v)}</span>
-                          </div>
-                        ))}
-                      </div>
-
-                      {!msg.executed ? (
-                        <div className="flex gap-2 pt-1">
-                          <button
-                            type="button"
-                            onClick={() => handleExecuteAction(idx, msg.action_proposal!)}
-                            disabled={executingAction}
-                            className="flex-1 py-2 bg-[#176B45] hover:bg-[#125335] text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1 cursor-pointer transition"
-                          >
-                            {executingAction ? (
-                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                            ) : (
-                              <CheckCircle2 className="w-3.5 h-3.5" />
-                            )}
-                            ✓ पुष्टी करा व सेव्ह करा
-                          </button>
+                      {/* Language indicator / Original toggle for historical messages */}
+                      {msg.role === 'assistant' && msg.language && msg.language !== language && (
+                        <div className="mt-2 pt-2 border-t border-gray-100 flex items-center justify-between text-[11px] text-gray-500">
+                          <span className="flex items-center gap-1">
+                            <Languages className="w-3 h-3 text-emerald-700" />
+                            <span>{msg.language === 'mr-IN' ? 'मराठी' : msg.language === 'hi-IN' ? 'हिन्दी' : 'English'}</span>
+                          </span>
                         </div>
-                      ) : (
-                        <div className="p-2 bg-emerald-50 text-emerald-800 rounded-xl font-bold flex items-center gap-1.5">
-                          <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                          {msg.executionResult}
+                      )}
+
+                      {/* Full Audio Controls (Bulbul V4) for Assistant Messages */}
+                      {msg.role === 'assistant' && (
+                        <div className="mt-2.5 pt-2 border-t border-gray-100 flex flex-wrap items-center justify-between gap-1.5 text-[11px]">
+                          <div className="flex items-center gap-1.5">
+                            {/* Play / Pause Toggle */}
+                            <button
+                              type="button"
+                              onClick={() => playAudio(idx, msg.text, msg.speech_text, msg.language)}
+                              disabled={isLoadingAudio && !isCurrentPlaying}
+                              className={`px-2.5 py-1 rounded-lg font-semibold flex items-center gap-1 cursor-pointer transition ${
+                                isCurrentPlaying
+                                  ? 'bg-[#176B45] text-white'
+                                  : 'text-[#176B45] hover:bg-emerald-50'
+                              }`}
+                            >
+                              {isCurrentPlaying && !isAudioPaused ? (
+                                <>
+                                  <Pause className="w-3 h-3" />
+                                  <span>{isMarathi ? 'थांबवा' : 'Pause'}</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Volume2 className="w-3 h-3" />
+                                  <span>
+                                    {isCurrentPlaying && isAudioPaused
+                                      ? isMarathi
+                                        ? 'सुरू करा'
+                                        : 'Resume'
+                                      : isMarathi
+                                      ? 'ऐका (Bulbul V4)'
+                                      : 'Listen (Bulbul V4)'}
+                                  </span>
+                                </>
+                              )}
+                            </button>
+
+                            {/* Stop button when active */}
+                            {isCurrentPlaying && (
+                              <button
+                                type="button"
+                                onClick={stopAudio}
+                                className="p-1 text-gray-600 hover:text-red-700 rounded-lg hover:bg-gray-100 transition cursor-pointer"
+                                title="Stop audio"
+                              >
+                                <VolumeX className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+
+                            {/* Replay button */}
+                            {isCurrentPlaying && (
+                              <button
+                                type="button"
+                                onClick={() => replayAudio(idx, msg.text, msg.speech_text, msg.language)}
+                                className="p-1 text-gray-600 hover:text-emerald-800 rounded-lg hover:bg-gray-100 transition cursor-pointer"
+                                title="Replay from start"
+                              >
+                                <RotateCcw className="w-3 h-3" />
+                              </button>
+                            )}
+
+                            {/* Playback speed toggle */}
+                            {isCurrentPlaying && (
+                              <button
+                                type="button"
+                                onClick={cyclePlaybackRate}
+                                className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-gray-100 text-gray-800 font-bold hover:bg-gray-200 transition cursor-pointer"
+                                title="Cycle speed"
+                              >
+                                {playbackRate}x
+                              </button>
+                            )}
+                          </div>
+
+                          {/* Audio pulse indicator */}
+                          {isCurrentPlaying && !isAudioPaused && (
+                            <div className="flex items-center gap-0.5 text-emerald-700">
+                              <span className="w-0.5 h-2.5 bg-emerald-600 rounded-full animate-bounce"></span>
+                              <span className="w-0.5 h-3.5 bg-emerald-600 rounded-full animate-bounce [animation-delay:0.15s]"></span>
+                              <span className="w-0.5 h-2 bg-emerald-600 rounded-full animate-bounce [animation-delay:0.3s]"></span>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
-                  )}
+
+                    {/* Interactive Action Proposal Card (Requirement 6) */}
+                    {msg.action_proposal && (
+                      <ActionProposalCard
+                        proposal={msg.action_proposal}
+                        isExecuted={msg.executed}
+                        executionResult={msg.executionResult}
+                        onExecute={async (prop) => {
+                          await handleExecuteAction(idx, prop);
+                        }}
+                      />
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
 
             {loading && (
               <div className="flex items-center gap-2 text-xs text-gray-500 p-2">
@@ -269,9 +331,9 @@ export const FloatingVoiceAssistant: React.FC = () => {
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Quick Prompts */}
+          {/* Quick Prompts (Follows global language selection) */}
           <div className="p-2 bg-white border-t border-gray-100 flex items-center gap-1.5 overflow-x-auto no-scrollbar shrink-0">
-            {quickPrompts[language as keyof typeof quickPrompts]?.slice(0, 3).map((prompt, i) => (
+            {quickPrompts[language as keyof typeof quickPrompts]?.slice(0, 4).map((prompt, i) => (
               <button
                 key={i}
                 type="button"

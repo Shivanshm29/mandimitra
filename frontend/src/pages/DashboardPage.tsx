@@ -14,6 +14,7 @@ import { RecordSaleModal } from '../components/RecordSaleModal';
 import { RecordPaymentModal } from '../components/RecordPaymentModal';
 import { DocumentScanModal } from '../components/DocumentScanModal';
 import { SellingLotsManager } from '../components/SellingLotsManager';
+import { DashboardVoiceAssistant } from '../components/DashboardVoiceAssistant';
 import {
   TrendingUp,
   Sparkles,
@@ -70,11 +71,35 @@ export const DashboardPage: React.FC = () => {
 
   useEffect(() => {
     loadDashboardData();
+
+    const handleDataChanged = () => {
+      loadDashboardData();
+    };
+
+    const handleOpenModal = (e: any) => {
+      const detail = e.detail || {};
+      if (detail.modal === 'RECORD_SALE') {
+        setPrefillSaleData(detail.prefill || null);
+        setIsSaleModalOpen(true);
+      } else if (detail.modal === 'RECORD_PAYMENT') {
+        setIsPaymentModalOpen(true);
+      } else if (detail.modal === 'SCAN_BILL') {
+        setIsDocScanModalOpen(true);
+      }
+    };
+
+    window.addEventListener('mandimitra:data-changed', handleDataChanged);
+    window.addEventListener('mandimitra:open-modal', handleOpenModal);
+
+    return () => {
+      window.removeEventListener('mandimitra:data-changed', handleDataChanged);
+      window.removeEventListener('mandimitra:open-modal', handleOpenModal);
+    };
   }, []);
 
   return (
     <div className="flex flex-col gap-6 sm:gap-8">
-      {/* 1. Farmer Welcome Banner with Prominent Voice Button */}
+      {/* 1. Farmer Welcome Banner with Direct Voice Assistant */}
       <div className="bg-gradient-to-r from-forest-800 via-forest-700 to-forest-600 rounded-3xl p-6 sm:p-8 text-white shadow-md relative overflow-hidden">
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-5">
           <div>
@@ -94,20 +119,9 @@ export const DashboardPage: React.FC = () => {
             </p>
           </div>
 
-          {/* Prominent Voice Assistant Button */}
+          {/* Direct Voice Assistant Mode Trigger (Requirement 5) */}
           <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={() => openAssistant()}
-              className="px-5 py-3.5 bg-mustard-500 hover:bg-mustard-400 text-charcoal-900 rounded-2xl font-bold shadow-lg flex items-center gap-2.5 transition-all transform active:scale-95 text-sm sm:text-base cursor-pointer"
-              title={t.dashboard.askSarvamVoiceBtn}
-              aria-label={t.dashboard.askSarvamVoiceBtn}
-            >
-              <div className="w-8 h-8 rounded-xl bg-charcoal-900 text-mustard-400 flex items-center justify-center">
-                <Mic className="w-5 h-5 animate-pulse" />
-              </div>
-              <span>{t.dashboard.askSarvamVoiceBtn}</span>
-            </button>
+            <DashboardVoiceAssistant />
           </div>
         </div>
 
